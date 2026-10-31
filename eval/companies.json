@@ -1,0 +1,82 @@
+{
+ "AAPL": {
+  "name": "Apple",
+  "cik": 320193
+ },
+ "MSFT": {
+  "name": "Microsoft",
+  "cik": 789019
+ },
+ "NVDA": {
+  "name": "NVIDIA",
+  "cik": 1045810
+ },
+ "GOOGL": {
+  "name": "Alphabet (Google)",
+  "cik": 1652044
+ },
+ "AMZN": {
+  "name": "Amazon",
+  "cik": 1018724
+ },
+ "META": {
+  "name": "Meta Platforms",
+  "cik": 1326801
+ },
+ "AVGO": {
+  "name": "Broadcom",
+  "cik": 1730168
+ },
+ "TSLA": {
+  "name": "Tesla",
+  "cik": 1318605
+ },
+ "ORCL": {
+  "name": "Oracle",
+  "cik": 1341439
+ },
+ "NFLX": {
+  "name": "Netflix",
+  "cik": 1065280
+ },
+ "AMD": {
+  "name": "Advanced Micro Devices",
+  "cik": 2488
+ },
+ "CRM": {
+  "name": "Salesforce",
+  "cik": 1108524
+ },
+ "ADBE": {
+  "name": "Adobe",
+  "cik": 796343
+ },
+ "CSCO": {
+  "name": "Cisco",
+  "cik": 858877
+ },
+ "IBM": {
+  "name": "IBM",
+  "cik": 51143
+ },
+ "INTU": {
+  "name": "Intuit",
+  "cik": 896878
+ },
+ "QCOM": {
+  "name": "Qualcomm",
+  "cik": 804328
+ },
+ "TXN": {
+  "name": "Texas Instruments",
+  "cik": 97476
+ },
+ "NOW": {
+  "name": "ServiceNow",
+  "cik": 1373715
+ },
+ "PLTR": {
+  "name": "Palantir",
+  "cik": 1321655
+ }
+}

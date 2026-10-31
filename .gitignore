@@ -1,0 +1,10 @@
+.env
+*.env
+.env.*
+!.env.example
+__pycache__/
+*.pyc
+*_target.json
+backup*.json
+ngrok*
+.DS_Store

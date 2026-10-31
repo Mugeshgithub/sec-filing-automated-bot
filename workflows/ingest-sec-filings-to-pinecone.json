@@ -1,0 +1,278 @@
+{
+ "name": "INGEST - SEC filings to Pinecone (fixed)",
+ "nodes": [
+  {
+   "id": "97ba2776-af18-482c-80c2-938d67e4e67d",
+   "name": "Ingest Webhook",
+   "type": "n8n-nodes-base.webhook",
+   "typeVersion": 2,
+   "position": [
+    0,
+    0
+   ],
+   "parameters": {
+    "httpMethod": "POST",
+    "path": "<RANDOM-WEBHOOK-PATH>",
+    "responseMode": "onReceived",
+    "options": {}
+   }
+  },
+  {
+   "id": "85b3b9fc-4ce4-43bb-824e-ccf4a1a5a5c4",
+   "name": "Select Filings",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    250,
+    0
+   ],
+   "parameters": {
+    "jsCode": "\nconst UA = 'SEC-RAG-Bot your-name your-email@example.com';\nconst COMPANIES = {\"AAPL\": {\"name\": \"Apple\", \"cik\": 320193}, \"MSFT\": {\"name\": \"Microsoft\", \"cik\": 789019}, \"NVDA\": {\"name\": \"NVIDIA\", \"cik\": 1045810}, \"GOOGL\": {\"name\": \"Alphabet (Google)\", \"cik\": 1652044}, \"AMZN\": {\"name\": \"Amazon\", \"cik\": 1018724}, \"META\": {\"name\": \"Meta Platforms\", \"cik\": 1326801}, \"AVGO\": {\"name\": \"Broadcom\", \"cik\": 1730168}, \"TSLA\": {\"name\": \"Tesla\", \"cik\": 1318605}, \"ORCL\": {\"name\": \"Oracle\", \"cik\": 1341439}, \"NFLX\": {\"name\": \"Netflix\", \"cik\": 1065280}, \"AMD\": {\"name\": \"Advanced Micro Devices\", \"cik\": 2488}, \"CRM\": {\"name\": \"Salesforce\", \"cik\": 1108524}, \"ADBE\": {\"name\": \"Adobe\", \"cik\": 796343}, \"CSCO\": {\"name\": \"Cisco\", \"cik\": 858877}, \"IBM\": {\"name\": \"IBM\", \"cik\": 51143}, \"INTU\": {\"name\": \"Intuit\", \"cik\": 896878}, \"QCOM\": {\"name\": \"Qualcomm\", \"cik\": 804328}, \"TXN\": {\"name\": \"Texas Instruments\", \"cik\": 97476}, \"NOW\": {\"name\": \"ServiceNow\", \"cik\": 1373715}, \"PLTR\": {\"name\": \"Palantir\", \"cik\": 1321655}};\nconst only = ($('Ingest Webhook').first().json.body || {}).tickers;\nconst out = [];\nfor (const [ticker, c] of Object.entries(COMPANIES)) {\n  if (Array.isArray(only) && only.length && !only.includes(ticker)) continue;\n  const cik10 = String(c.cik).padStart(10, '0');\n  const sub = await this.helpers.httpRequest({ url: 'https://data.sec.gov/submissions/CIK' + cik10 + '.json', headers: { 'User-Agent': UA }, json: true, timeout: 30000 });\n  const r = sub.filings.recent;\n  for (const form of ['10-K', '10-Q']) {\n    const i = r.form.indexOf(form);\n    if (i === -1) continue;\n    const acc = r.accessionNumber[i];\n    out.push({ json: { ticker, company: c.name, form, filingDate: r.filingDate[i], reportDate: r.reportDate[i] || '',\n      accession: acc, url: 'https://www.sec.gov/Archives/edgar/data/' + c.cik + '/' + acc.replace(/-/g, '') + '/' + r.primaryDocument[i] } });\n  }\n  await new Promise(res => setTimeout(res, 300));\n}\nreturn out;\n"
+   }
+  },
+  {
+   "id": "9a6a7284-69f0-4535-8dad-b1d0b3a61140",
+   "name": "Download And Clean",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    500,
+    0
+   ],
+   "parameters": {
+    "jsCode": "\nconst UA = 'SEC-RAG-Bot your-name your-email@example.com';\nconst MAX = 350000, MIN = 20000;\nconst out = [];\nfor (const item of $input.all()) {\n  const m = item.json;\n  try {\n    const html = await this.helpers.httpRequest({ url: m.url, headers: { 'User-Agent': UA }, encoding: 'text', json: false, timeout: 120000 });\n    const text = String(html)\n      .replace(/<ix:header>[\\s\\S]*?<\\/ix:header>/gi, ' ')\n      .replace(/<script[\\s\\S]*?<\\/script>/gi, ' ').replace(/<style[\\s\\S]*?<\\/style>/gi, ' ')\n      .replace(/<\\/(p|div|tr|li|h[1-6])>/gi, '\\n').replace(/<br\\s*\\/?>/gi, '\\n')\n      .replace(/<[^>]+>/g, ' ')\n      .replace(/&nbsp;|&#160;|&#xa0;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&quot;/gi, '\"')\n      .replace(/&#(\\d+);/g, (_, n) => String.fromCharCode(+n)).replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)))\n      .replace(/[ \\t\u00a0]+/g, ' ').replace(/ ?\\n ?/g, '\\n').replace(/\\n{3,}/g, '\\n\\n').trim().slice(0, MAX);\n    if (text.length < MIN) { out.push({ json: { ...m, ok: false, reason: 'too little text: ' + text.length } }); continue; }\n    out.push({ json: { ...m, ok: true, chars: text.length },\n      binary: { data: { data: Buffer.from(text, 'utf8').toString('base64'), mimeType: 'text/plain', fileName: m.ticker + '_' + m.form + '_' + m.filingDate + '.txt' } } });\n  } catch (e) { out.push({ json: { ...m, ok: false, reason: String(e.message || e).slice(0, 200) } }); }\n  await new Promise(res => setTimeout(res, 250));\n}\nreturn out;\n"
+   }
+  },
+  {
+   "id": "52a81c68-8391-4ad9-a1c5-2443c3d79c31",
+   "name": "OK?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.2,
+   "position": [
+    750,
+    0
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "loose",
+      "version": 2
+     },
+     "conditions": [
+      {
+       "id": "9dfea606-4df1-454d-81cd-030d6567fd01",
+       "leftValue": "={{ $json.ok }}",
+       "rightValue": "",
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "f43b3c4b-b4e5-4cfc-b39a-bb27cc82fc52",
+   "name": "Skipped",
+   "type": "n8n-nodes-base.noOp",
+   "typeVersion": 1,
+   "position": [
+    1000,
+    200
+   ],
+   "parameters": {}
+  },
+  {
+   "id": "f3822ec1-7d36-46e0-90f7-af77f04419f4",
+   "name": "Loop Over Filings",
+   "type": "n8n-nodes-base.splitInBatches",
+   "typeVersion": 3,
+   "position": [
+    1000,
+    0
+   ],
+   "parameters": {
+    "batchSize": 1,
+    "options": {}
+   }
+  },
+  {
+   "id": "6151c491-6037-46d6-a4e3-034723f8dc8b",
+   "name": "Done",
+   "type": "n8n-nodes-base.noOp",
+   "typeVersion": 1,
+   "position": [
+    1250,
+    -150
+   ],
+   "parameters": {}
+  },
+  {
+   "id": "7a3a4b1a-87f7-4157-bae3-76f165cc52b7",
+   "name": "Chunk Filing",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1250,
+    0
+   ],
+   "parameters": {
+    "jsCode": "\nconst SIZE = 1500, OVERLAP = 200, BATCH = 96;\nconst m = $input.first().json;\nconst text = (await this.helpers.getBinaryDataBuffer(0, 'data')).toString('utf8');\nconst docs = [];\nfor (let start = 0, i = 0; start < text.length; start += SIZE - OVERLAP, i++) {\n  let end = Math.min(text.length, start + SIZE);\n  if (end < text.length) { const cut = text.lastIndexOf('\\n', end); if (cut > start + SIZE / 2) end = cut; }   // prefer paragraph breaks\n  const chunk = text.slice(start, end).trim();\n  if (chunk.length > 80) docs.push({ _id: [m.ticker, m.form, m.filingDate, i].join('-'), chunk_text: chunk,\n    ticker: m.ticker, company: m.company, form: m.form, filingDate: m.filingDate, reportDate: m.reportDate || '', url: m.url,\n    source: m.ticker + ' ' + m.form + ' (' + m.filingDate + ')' });\n  if (end >= text.length) break;\n}\nconst out = [];\nfor (let b = 0; b < docs.length; b += BATCH) out.push({ json: { ticker: m.ticker, form: m.form, n: docs.length, documents: docs.slice(b, b + BATCH) } });\nreturn out;\n"
+   }
+  },
+  {
+   "id": "1e1d78be-6d33-4a53-8204-87cf1ce77f85",
+   "name": "Index SEC Filings",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "retryOnFail": true,
+   "maxTries": 3,
+   "waitBetweenTries": 5000,
+   "position": [
+    1500,
+    0
+   ],
+   "parameters": {
+    "method": "POST",
+    "url": "=https://<YOUR-PINECONE-INDEX-HOST>/namespaces/{{ $json.ticker }}/documents/upsert",
+    "authentication": "predefinedCredentialType",
+    "nodeCredentialType": "pineconeApi",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "X-Pinecone-Api-Version",
+       "value": "2026-07"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ documents: $json.documents }) }}",
+    "options": {
+     "response": {
+      "response": {
+       "neverError": true,
+       "fullResponse": true
+      }
+     },
+     "batching": {
+      "batch": {
+       "batchSize": 1,
+       "batchInterval": 15000
+      }
+     }
+    }
+   },
+   "credentials": {
+    "pineconeApi": {
+     "id": "<YOUR-CREDENTIAL-ID>",
+     "name": "<YOUR pineconeApi CREDENTIAL>"
+    }
+   }
+  }
+ ],
+ "connections": {
+  "Ingest Webhook": {
+   "main": [
+    [
+     {
+      "node": "Select Filings",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Select Filings": {
+   "main": [
+    [
+     {
+      "node": "Download And Clean",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Download And Clean": {
+   "main": [
+    [
+     {
+      "node": "OK?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "OK?": {
+   "main": [
+    [
+     {
+      "node": "Loop Over Filings",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Skipped",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Loop Over Filings": {
+   "main": [
+    [
+     {
+      "node": "Done",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Chunk Filing",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Chunk Filing": {
+   "main": [
+    [
+     {
+      "node": "Index SEC Filings",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Index SEC Filings": {
+   "main": [
+    [
+     {
+      "node": "Loop Over Filings",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  }
+ },
+ "settings": {
+  "executionOrder": "v1",
+  "availableInMCP": true
+ }
+}
