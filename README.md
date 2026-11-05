@@ -82,3 +82,46 @@ scripts/     helper scripts (build workflows, run eval, run ingestion)
 - Grading thresholds (0.45 and 0.6) were tuned by hand from observed scores.
 - The test set is small. It catches regressions but does not prove coverage.
 - Nothing here is investment advice.
+
+## Use this pattern for your own data
+
+The SEC version is the only one built and tested here. But nothing in the design is about finance, so the same flow should work for other questions you need answered from your own data, with sources.
+
+The pattern:
+
+1. **Plan.** A small model splits a compound question into parts.
+2. **Route.** Each part goes to one lane: your documents, an exact value from an API or database, a web search, or a direct reply (including a refusal).
+3. **Grade.** Check that what came back is good enough, or say it was not.
+4. **Answer.** Write the answer only from what was found, with sources.
+5. **Merge.** Combine the parts into one reply.
+6. **Test.** Score a fixed set of questions automatically, including traps.
+
+Some ways it could map to other domains (untested ideas, not finished builds):
+
+| Use case | Documents lane | Numbers lane | Web lane | Should decline |
+|---|---|---|---|---|
+| Company HR bot | Handbook and policies | Leave balance from your HR system | Public holiday dates | Legal or medical advice, other people's data |
+| Customer support | Help centre articles | Order and subscription status | Service status page | Refunds beyond policy (hand to a human) |
+| Contracts | Clause text | Renewal dates and values from a contract table | Law changes | Legal advice |
+| Supply chain | Supplier contracts, SOPs | Stock levels from the ERP | Port and shipping news | Orders and price commitments |
+| Developer docs | Repo docs and READMEs | Open issues and PR counts from GitHub | Library changelogs | Questions about private code |
+| Public data and regulation | Laws and official reports | Official statistics API | News | Political opinions |
+| Education | Course notes | Gradebook | Reference sites | Giving exam answers |
+| Personal | Notes, receipts, saved articles | Bank statements as CSV | Anything else | Anything with other people's data |
+
+What you keep: the planner, the router and grader structure, the citation format, the n8n layout and the evaluation scripts.
+
+What you change:
+
+- The ingestion workflow, so it loads your documents.
+- The numbers lane, so it points at your own API or database.
+- The routing rules, including what counts as out of scope.
+- The refusal rules (for example, never give legal advice).
+- The test questions, written for your domain.
+- The grading thresholds, which here were tuned by hand for SEC filings.
+
+Tips:
+
+- Write about 20 test questions first, including traps: questions your data cannot answer, and questions that try to inject instructions. That is how this project went from 11/18 to 21/21.
+- Start with one lane, usually documents. Add the numbers lane once search works.
+- Decide what the bot must refuse before you build anything.
