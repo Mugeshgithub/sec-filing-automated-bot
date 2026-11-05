@@ -12,6 +12,8 @@ and it replies with exact figures from the SEC's structured data, risks taken fr
 
 ## How it works
 
+![The whole bot on one n8n canvas: Telegram, orchestrator and worker rows, with the filings, numbers, web and direct lanes](docs/workflow.png)
+
 One n8n workflow with three rows:
 
 ```
